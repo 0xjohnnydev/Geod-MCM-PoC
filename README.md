@@ -49,7 +49,7 @@ The directory contains the live cache plist:
 
 ## Runtime evidence
 
-A transactional test ran on `iPhone18,2`, iOS 27.0 build `24A5380h`.
+A transactional test ran on `iPhone12,1`, iOS 27.0 build `24A5380h`.
 
 - MobileContainerManager returned a 275-byte sandbox token.
 - Token activation succeeded.
@@ -63,6 +63,13 @@ A transactional test ran on `iPhone18,2`, iOS 27.0 build `24A5380h`.
 This proves chosen-content write access to the MobileGestalt cache plist on the
 tested build. It does not prove arbitrary `/private/var` access.
 
+A separate `iPhone18,2` run on `24A5380h` obtained and activated the same
+275-byte token. It created a scratch sibling in the target directory. The
+harness then detected `metadata_parity=false` and stopped before swapping the
+chosen marker into the live plist. That run ended `proof_succeeded=false` and
+`recovery_unresolved=true`. The live plist retained its original bytes and
+inode. Do not use that run as chosen-content proof.
+
 ## Direct `geod` lookup is weaker
 
 On `iPhone18,2` build `24A5390f`,
@@ -75,6 +82,7 @@ On `iPhone18,2` build `24A5390f`,
 The app listed `Documents`, `Library`, `tmp`, and the container metadata plist.
 Opening the metadata plist failed with `EPERM`. This direct result proves
 directory enumeration only. It is not the MobileGestalt write primitive.
+The class-12 sandbox-extension query itself returned no object on this build.
 
 ## Scope and safety
 
@@ -82,6 +90,7 @@ directory enumeration only. It is not the MobileGestalt write primitive.
 - It does not cover all system containers or all of `/private/var`.
 - It does not provide root, kernel access, Keychain access, or code execution.
 - Do not replace the exact traversal with `..`, `../..`, or broader ancestors.
+- The tested builds do not establish the earliest affected version.
 
 An older `partDomain=../..` experiment changed two existing class-12 container
 roots from owner `0:0` to `501:501`. A sandboxed app could not restore that
@@ -101,6 +110,10 @@ Static analysis shows that the write chain is patched in `iPhone18,2` build
 
 The old `geod` strings can remain in the binary. They do not restore the
 read/write extension or traversal primitive.
+
+The new extension core retains a proxied-client branch. That branch does not
+restore this direct normal-app chain: the nonzero-access policy gate and the
+`partDomain` parser both reject the proven request first.
 
 Runtime denial testing on `24A5408d` would confirm the static result. The exact
 target device currently runs `24A5390f`, so this repository does not claim a
