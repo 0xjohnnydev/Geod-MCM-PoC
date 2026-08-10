@@ -1,20 +1,16 @@
 # `geod` MobileContainerManager traversal PoC
 
-This PoC demonstrates two MobileContainerManager defects that compose into one
-fixed-directory sandbox escape:
+## Overview
 
-1. Class 12 treats `com.apple.geod` as a built-in allowed system container.
-2. MobileContainerManager accepted an unchecked `partDomain` during path
-   construction.
+This sandbox escape combines two MobileContainerManager bugs:
 
-This route does not need the `com.apple.mobile.MobileHouseArrest` caller
-identity. The old Filza label `[MHA-C12]` described the container class, but it
-did not describe the root cause correctly.
+1. Class 12 allowed access to the built-in `com.apple.geod` container.
+2. The `partDomain` field accepted path traversal.
+
+The traversal redirected a read/write sandbox extension from the `geod`
+container to the MobileGestalt cache directory.
 
 ## Trigger
-
-The request selects the `geod` system-data container. It asks for part 3,
-`Library/Caches`, and a read/write sandbox extension.
 
 ```objc
 query_set_class(query, 12);
@@ -26,104 +22,36 @@ query_set_part_domain(query,
     "systemgroup.com.apple.mobilegestaltcache/Library/Caches");
 ```
 
-The affected implementation returned this lexical path:
+## Paths accessed
+
+MobileContainerManager first built this lexical path:
 
 ```text
 /private/var/containers/Data/System/com.apple.geod/Library/Caches/../../../../../../containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches
 ```
 
-It resolves to this exact directory:
+It resolves to:
 
 ```text
-/private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches
+/private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches/
 ```
 
-The directory contains the live cache plist:
+The extension can open the live cache plist for read and write:
 
 ```text
 /private/var/containers/Shared/SystemGroup/systemgroup.com.apple.mobilegestaltcache/Library/Caches/com.apple.MobileGestalt.plist
 ```
 
-[`poc.m`](poc.m) activates the returned token and opens that plist with
-`O_RDWR | O_NOFOLLOW`. The simple PoC does not change the plist.
-
-## Runtime evidence
-
-A transactional test ran on `iPhone12,1`, iOS 27.0 build `24A5380h`.
-
-- MobileContainerManager returned a 275-byte sandbox token.
-- Token activation succeeded.
-- The resolved directory matched the MobileGestalt cache directory.
-- The test installed the key `CodexMCMGeodWriteProof` with a chosen UUID.
-- The test read back the chosen key, value, and serialized bytes.
-- The test restored the exact original bytes and inode.
-- The final log reported `proof_succeeded=true` and
-  `recovery_unresolved=false`.
-
-This proves chosen-content write access to the MobileGestalt cache plist on the
-tested build. It does not prove arbitrary `/private/var` access.
-
-A separate `iPhone18,2` run on `24A5380h` obtained and activated the same
-275-byte token. It created a scratch sibling in the target directory. The
-harness then detected `metadata_parity=false` and stopped before swapping the
-chosen marker into the live plist. That run ended `proof_succeeded=false` and
-`recovery_unresolved=true`. The live plist retained its original bytes and
-inode. Do not use that run as chosen-content proof.
-
-## Direct `geod` lookup is weaker
-
-On `iPhone18,2` build `24A5390f`,
-`container_system_path_for_identifier("com.apple.geod")` returned:
-
-```text
-/private/var/containers/Data/System/com.apple.geod
-```
-
-The app listed `Documents`, `Library`, `tmp`, and the container metadata plist.
-Opening the metadata plist failed with `EPERM`. This direct result proves
-directory enumeration only. It is not the MobileGestalt write primitive.
-The class-12 sandbox-extension query itself returned no object on this build.
-
-## Scope and safety
-
-- The proven write authority covers the fixed MobileGestalt cache directory.
-- It does not cover all system containers or all of `/private/var`.
-- It does not provide root, kernel access, Keychain access, or code execution.
-- Do not replace the exact traversal with `..`, `../..`, or broader ancestors.
-- The tested builds do not establish the earliest affected version.
-
-An older `partDomain=../..` experiment changed two existing class-12 container
-roots from owner `0:0` to `501:501`. A sandboxed app could not restore that
-metadata. The public PoC therefore performs no directory creation and no file
-mutation.
+This is fixed-directory access. It is not arbitrary `/private/var` access.
 
 ## Patch status
 
-Static analysis shows that the write chain is patched in `iPhone18,2` build
-`24A5408d`.
-
-1. Class-12 result-5 authorization now requires `access == 0`.
-2. Every supported sandbox-extension request has nonzero access.
-3. A second guard rejects the proven part-3 read/write request.
-4. Message parsing rejects a `partDomain` that is empty, contains `/`, or starts
-   with `.`.
-
-The old `geod` strings can remain in the binary. They do not restore the
-read/write extension or traversal primitive.
-
-The new extension core retains a proxied-client branch. That branch does not
-restore this direct normal-app chain: the nonzero-access policy gate and the
-`partDomain` parser both reject the proven request first.
-
-Runtime denial testing on `24A5408d` would confirm the static result. The exact
-target device currently runs `24A5390f`, so this repository does not claim a
-`24A5408d` runtime result.
+This chain is patched in iOS 27 beta 5 (`24A5408d`). The new code blocks
+nonzero class-12 access and rejects traversal in `partDomain`. The iOS 26.6.1
+status is not verified.
 
 ## Use
 
-1. Add `poc.m` to an Objective-C iOS application target.
+1. Add [`poc.m`](poc.m) to an Objective-C iOS application target.
 2. Build with the `iphoneos` SDK for `arm64e`.
-3. Call `run_geod_mcm_poc()` from an explicit test action.
-
-No special bundle identifier or private entitlement is required for the tested
-route.
+3. Call `run_geod_mcm_poc()` from a test action.
