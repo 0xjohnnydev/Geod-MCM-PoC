@@ -47,7 +47,12 @@ This is fixed-directory access. It is not arbitrary `/private/var` access.
 ## Patch status
 
 This chain is patched in iOS 27 beta 5 (`24A5408d`). The new code blocks
-nonzero class-12 access and rejects traversal in `partDomain`. The iOS 26.6.1
+nonzero class-12 access and rejects traversal in `partDomain`.
+
+On an iPhone 11 running iOS 26.5.2 (`23F84`), MobileContainerManager returned
+the traversal-shaped path but supplied no sandbox token. The live plist stayed
+inaccessible. The result was the same under a normal app identifier and the
+`com.apple.mobile.MobileHouseArrest` CodeDirectory identifier. The iOS 26.6.1
 status is not verified.
 
 ## Use
