@@ -44,20 +44,10 @@ The extension can open the live cache plist for read and write:
 
 This is fixed-directory access. It is not arbitrary `/private/var` access.
 
-## Patch status
+## Versions
 
-This chain is patched in iOS 27 beta 5 (`24A5408d`). The new code blocks
-nonzero class-12 access and rejects traversal in `partDomain`.
-
-On an iPhone 11 running iOS 26.5.2 (`23F84`), MobileContainerManager returned
-the traversal-shaped path but supplied no sandbox token. The live plist stayed
-inaccessible. The result was the same under a normal app identifier and the
-`com.apple.mobile.MobileHouseArrest` CodeDirectory identifier. The iOS 26.6.1
-status is not verified.
-
-This result applies only to the `geod` traversal chain. The separate
-MobileHouseArrest container escape is confirmed vulnerable on the same
-`23F84` device.
+Works on iOS 27 beta 1 through beta 4 and iOS 26. It should also apply to
+iOS 18, although some releases may need implementation adjustments.
 
 ## Use
 
