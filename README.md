@@ -55,6 +55,10 @@ inaccessible. The result was the same under a normal app identifier and the
 `com.apple.mobile.MobileHouseArrest` CodeDirectory identifier. The iOS 26.6.1
 status is not verified.
 
+This result applies only to the `geod` traversal chain. The separate
+MobileHouseArrest container escape is confirmed vulnerable on the same
+`23F84` device.
+
 ## Use
 
 1. Add [`poc.m`](poc.m) to an Objective-C iOS application target.
